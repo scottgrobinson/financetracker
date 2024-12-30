@@ -1,0 +1,31 @@
+body {
+    padding-top: 4.5rem;
+    font-size: 0.9rem;
+    font-family: "Raleway", sans-serif;
+    line-height: 1.6;
+}
+
+.navbar {
+    background-color: #0a77bd;
+}
+
+.navbar-brand, a.nav-link, a.nav-link:hover, a.nav-link:active, a.nav-link:visited {
+    color: #ffffff;
+}
+
+a.nav-link:hover {
+    text-decoration-line: underline;
+}
+.btn-secondary {
+    margin-right: 5px;
+    cursor: pointer;
+}
+.card-deck>.card { 
+    margin-bottom: 5px;
+}
+meter { 
+    height:30px;
+}
+.card-title {
+    margin-bottom: 0px;
+}
