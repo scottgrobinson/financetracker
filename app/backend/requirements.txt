@@ -1,4 +1,11 @@
 flask
+flask-cors
+Flask-SQLAlchemy
+flask_marshmallow
+marshmallow-sqlalchemy
+pymysql
+requests
 apscheduler
+Flask-APScheduler
 nordigen
-pymongo
+rule-engine
