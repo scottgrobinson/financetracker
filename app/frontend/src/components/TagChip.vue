@@ -1,10 +1,12 @@
 <script>
 import { doApiCall } from "@/helpers/doApiCall";
+import { readonly } from "vue";
 
 export default {
   props: {
     tag: { type: String, required: true },
-    transaction: { type: Object, required: true },
+    transaction: { type: Object },
+    readonly: { type: Boolean, default: false },
   },
   data() {
     return {
@@ -36,8 +38,9 @@ export default {
 
 <template>
   <v-chip>
-    {{ tag }}&nbsp;
+    {{ tag }}<template v-if="!readonly">&nbsp;</template>
     <v-icon
+      v-if="!readonly"
       right
       x-small
       @click.stop="removeTag(transaction, tag)"

@@ -50,6 +50,12 @@ export default {
         to="/rules"
         @click="navDrawer = false"
       ></v-list-item>
+      <v-list-item
+        link
+        title="Reports"
+        to="/reports"
+        @click="navDrawer = false"
+      ></v-list-item>
     </v-navigation-drawer>
     <v-main fluid fill-height>
       <v-container fluid fill-height>

@@ -7,4 +7,7 @@ class AccountSchema(ma.SQLAlchemyAutoSchema):
         model = Account
         include_relationships = True
 
-    transactions = ma.Nested(TransactionSchema, many=True)
+    # ChatGPT told me to do this...
+    # Something to do with the @post_dump function in TransactionSchema.py
+    #transactions = ma.Nested(TransactionSchema, many=True)
+    transactions = ma.List(ma.Nested(TransactionSchema))

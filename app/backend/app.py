@@ -9,7 +9,10 @@ from .config import Config
 from .globals import Globals
 from .routes.Account import AccountBlueprint
 from .routes.Rule import RuleBlueprint
+from .routes.Tag import TagBlueprint
 from .routes.Transaction import TransactionBlueprint
+from .routes.Person import PersonBlueprint
+from .routes.Report import ReportBlueprint
 from .nordigen_processor import NordigenProcessor
 from apscheduler.executors.pool import ProcessPoolExecutor, ThreadPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -25,7 +28,10 @@ app = Flask(__name__)
 app.config.from_object(Config)
 app.register_blueprint(AccountBlueprint, url_prefix='/api/account')
 app.register_blueprint(RuleBlueprint, url_prefix='/api/rule')
+app.register_blueprint(TagBlueprint, url_prefix='/api/tag')
 app.register_blueprint(TransactionBlueprint, url_prefix='/api/transaction')
+app.register_blueprint(PersonBlueprint, url_prefix='/api/person')
+app.register_blueprint(ReportBlueprint, url_prefix='/api/report')
 
 # enable CORS
 CORS(app)

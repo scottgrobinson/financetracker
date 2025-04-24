@@ -1,12 +1,18 @@
 <script>
 import { doApiCall } from "@/helpers/doApiCall";
-import ButtonWithState from "../components/ButtonWithState.vue";
-import TagChip from "../components/TagChip.vue";
+import ButtonWithState from "@/components/ButtonWithState.vue";
+import TransactionTable from "@/components/TransactionTable.vue";
 
 export default {
   components: {
     ButtonWithState,
-    TagChip,
+    TransactionTable,
+  },
+  computed: {
+    selectedAccount() {
+      if (!this.accounts || !this.selectedAccountId) return null;
+      return this.accounts.find((acc) => acc.id === this.selectedAccountId);
+    },
   },
   data() {
     return {
@@ -20,24 +26,17 @@ export default {
         updateTransactions: null,
       },
 
+      // People for dropdown
+      personsList: [],
+
       // Accounts & transactions
       accounts: null,
       transactions: null,
-      selectedAccount: null,
-      tableHeaders: [
-        { title: "Date/Time", value: "datetime", sortable: true },
-        {
-          title: "Description",
-          value: "remittance_information",
-          sortable: true,
-        },
-        { title: "Amount", value: "amount", sortable: true },
-        { title: "Tags", value: "tags", sortable: true },
-      ],
+      selectedAccountId: null,
 
       // Tag handling
       newTag: "",
-      dialogVisible: false,
+      tagDialogVisible: false,
       transactionToTag: null,
       newRuleFormValid: false,
       requiredRule: [
@@ -55,12 +54,12 @@ export default {
     /**
      * Wraps doApiCall in state management for buttons (loading & icon states).
      */
-    async doAction(actionKey, url) {
+    async doAction(actionKey, url, errorActionDescription) {
       this.btnLoadingStates[actionKey] = true;
       this.btnIconStates[actionKey] = null;
 
       try {
-        await doApiCall(url, "GET", false, null, "t");
+        await doApiCall(url, "GET", false, null, errorActionDescription);
         this.btnIconStates[actionKey] = "success";
       } catch (err) {
         console.error(err);
@@ -71,18 +70,21 @@ export default {
     },
 
     async handleUpdateBalances() {
-      await this.doAction("updateBalances", "/api/account/update");
+      await this.doAction(
+        "updateBalances",
+        "/api/account/update",
+        "updating balances"
+      );
+      await this.getAccounts();
     },
 
     async handleUpdateTransactions() {
-      await this.doAction("updateTransactions", "/api/transaction/update");
-    },
-
-    formatCurrency(value) {
-      return value.toLocaleString("en-gb", {
-        style: "currency",
-        currency: "USD",
-      });
+      await this.doAction(
+        "updateTransactions",
+        "/api/transaction/update",
+        "updating transactions"
+      );
+      await this.getAccountTransactions();
     },
 
     async getAccounts() {
@@ -95,9 +97,22 @@ export default {
       );
     },
 
+    async getSelectedAccountEuaExpiryURL() {
+      if (!this.selectedAccount.eua_expiry_url) {
+        let account = await doApiCall(
+          `/api/account/${this.selectedAccountId}/generatereneweuaurl`,
+          "GET",
+          true,
+          null,
+          "fetching account generate rewnew eua url"
+        );
+        this.selectedAccount.eua_expiry_url = account.eua_expiry_url;
+      }
+    },
+
     async getAccountTransactions() {
       let account = await doApiCall(
-        `/api/account/${this.selectedAccount}`,
+        `/api/account/${this.selectedAccountId}`,
         "GET",
         true,
         null,
@@ -107,45 +122,93 @@ export default {
     },
 
     /**
+     * Fetch list of all people for the assignee dropdown
+     */
+    async getPersons() {
+      this.personsList = await doApiCall(
+        "/api/person/",
+        "GET",
+        true,
+        null,
+        "fetching persons"
+      );
+    },
+
+    /**
      * Opens the Add Tag dialog for a given transaction.
      */
     openAddTagDialog(transaction) {
       this.transactionToTag = transaction;
       this.newTag = "";
-      this.dialogVisible = true;
+      this.tagDialogVisible = true;
     },
 
     /**
      * Adds the new tag to the selected transaction once confirmed.
      * Ideally, you'd also update the backend via API here.
      */
-    confirmAddTag() {
+    async confirmAddTag() {
       if (!this.newTag.trim()) return;
 
-      this.transactionToTag.tags.push(this.newTag.trim());
-      this.newTag = "";
-      this.dialogVisible = false;
-      this.transactionToTag = null;
+      try {
+        await doApiCall(
+          `/api/account/${this.transactionToTag.account}/${this.transactionToTag.id}/tag/${this.newTag}`,
+          "POST",
+          false,
+          null,
+          "adding tag"
+        );
+        this.transactionToTag.tags.push(this.newTag.trim());
+      } finally {
+        this.newTag = "";
+        this.tagDialogVisible = false;
+        this.transactionToTag = null;
+        this.newRuleFormValid = false;
+      }
     },
 
     removeTag(transaction, tag) {
       const index = transaction.tags.indexOf(tag);
       transaction.tags.splice(index, 1);
     },
+
+    async updateAssignees(transaction, assignees) {
+      try {
+        await doApiCall(
+          `/api/account/${transaction.account}/${transaction.id}/assignees`,
+          "POST",
+          false,
+          {
+            assignees: assignees,
+          },
+          "updating assignees"
+        );
+      } catch (err) {
+        console.error("Failed to update assignees:", err);
+      }
+    },
   },
-  created() {
-    this.getAccounts();
-    this.selectedAccount = this.$route.params.accountid;
-    if (this.selectedAccount) {
-      this.getAccountTransactions();
+  async created() {
+    await this.getPersons();
+    await this.getAccounts();
+    this.selectedAccountId = this.$route.params.accountid;
+    if (this.selectedAccountId) {
+      if (this.selectedAccount && this.selectedAccount.eua_expired) {
+        await this.getSelectedAccountEuaExpiryURL();
+      }
+      await this.getAccountTransactions();
     }
   },
   watch: {
-    $route() {
-      this.selectedAccount = this.$route.params.accountid;
+    async $route() {
+      this.selectedAccountId = this.$route.params.accountid;
       this.transactions = null;
-      if (this.selectedAccount) {
+      if (this.selectedAccountId) {
         this.getAccountTransactions();
+        if (this.selectedAccount && this.selectedAccount.eua_expired) {
+          this.getSelectedAccountEuaExpiryURL();
+        }
+        await this.getAccountTransactions();
       }
     },
   },
@@ -158,9 +221,15 @@ export default {
     <div class="d-flex flex-wrap ga-2">
       <v-chip
         v-for="account in accounts"
-        :key="account._id"
+        :key="account.id"
         :to="'/account/' + account.id"
-        :color="account.id == this.selectedAccount ? 'secondary' : ''"
+        :color="
+          account.id == this.selectedAccountId
+            ? 'secondary'
+            : account.eua_expired
+            ? 'red'
+            : ''
+        "
       >
         {{ account.description }}&nbsp;
         <strong>
@@ -192,6 +261,22 @@ export default {
     </div>
   </div>
 
+  <v-alert
+    density="compact"
+    elevation="0"
+    v-if="selectedAccount && selectedAccount.eua_expired"
+    title="EUA Expired"
+    type="error"
+    style="margin-bottom: 16px"
+    >Your access agreement for “{{ selectedAccount.description }}” has expired.
+    <span v-if="selectedAccount.eua_expiry_url"
+      >Renew via
+      <a :href="selectedAccount.eua_expiry_url" target="_blank">{{
+        selectedAccount.eua_expiry_url
+      }}</a></span
+    ></v-alert
+  >
+
   <v-text-field
     v-if="transactions"
     v-model="search"
@@ -202,65 +287,18 @@ export default {
     single-line
   ></v-text-field>
 
-  <!-- Data Table -->
-  <v-data-table
-    class="mt-4"
-    :items="transactions"
-    v-if="transactions && transactions.length"
-    :headers="tableHeaders"
+  <TransactionTable
+    v-if="transactions"
+    :transactions="transactions"
+    :persons-list="personsList"
     :search="search"
-    no-data-text="No matching transactions found"
-  >
-    <template v-slot:item.datetime="{ item }">
-      <span>
-        {{
-          new Date(item.datetime).toLocaleDateString("en-gb", {
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-          })
-        }}
-      </span>
-    </template>
-
-    <template v-slot:item.amount="{ item }">
-      <span>
-        {{
-          new Intl.NumberFormat("en-GB", {
-            style: "currency",
-            currency: "GBP",
-          }).format(item.amount)
-        }}
-      </span>
-    </template>
-
-    <!-- Tags -->
-    <template v-slot:item.tags="{ item }">
-      <div class="d-flex align-center flex-wrap ga-1">
-        <!-- Existing Tags -->
-        <TagChip
-          v-for="(tag, index) in item.tags"
-          :key="index"
-          :tag="tag"
-          :transaction="item"
-          @removeTag="removeTag"
-        />
-
-        <!-- Chip for adding a new tag -->
-        <v-chip
-          text-color="white"
-          small
-          class="cursor-pointer"
-          @click="openAddTagDialog(item)"
-        >
-          <v-icon small>mdi-plus</v-icon>
-        </v-chip>
-      </div>
-    </template>
-  </v-data-table>
+    @update-assignees="updateAssignees"
+    @remove-tag="removeTag"
+    @open-add-tag-dialog="openAddTagDialog"
+  />
 
   <!-- Dialog for adding a new tag -->
-  <v-dialog v-model="dialogVisible" max-width="400px">
+  <v-dialog v-model="tagDialogVisible" max-width="400px">
     <v-card>
       <v-card-title>Add Tag</v-card-title>
       <v-form ref="newRuleForm" v-model="newRuleFormValid" lazy-validation>
@@ -278,7 +316,7 @@ export default {
       </v-form>
       <v-card-actions>
         <v-spacer />
-        <v-btn text @click="dialogVisible = false">Cancel</v-btn>
+        <v-btn text @click="tagDialogVisible = false">Cancel</v-btn>
         <v-btn
           color="primary"
           text

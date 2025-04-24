@@ -5,6 +5,7 @@ class Account(db.Model):
     description = db.Column(db.String(100), nullable=False)
     institution = db.Column(db.String(100), nullable=False)
     balance_type = db.Column(db.String(100), nullable=False)
+    eua_expired = db.Column(db.Boolean, default=False)
     balance = db.Column(db.Float, nullable=False)
 
     transactions = db.relationship(

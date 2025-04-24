@@ -18,14 +18,18 @@ export const doApiCall = async (
     } else {
       response = await fetch(url, { method: method });
     }
-    if (!response.ok) {
-      throw new Error(`Expected HTTP 200, got HTTP ${response.status}`);
-    }
 
     const json = await response.json();
     if (expectingReturnData) {
       return json;
     } else {
+      if (!response.ok) {
+        if (json.error) {
+          throw new Error(`Expected HTTP 200, got ${json.error}`);
+        } else {
+          throw new Error(`Expected HTTP 200, got HTTP ${response.status}`);
+        }
+      }
       if (!json.success) {
         throw new Error(
           json.error
